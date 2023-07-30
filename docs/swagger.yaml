@@ -1,0 +1,330 @@
+definitions:
+  handler_user.User:
+    properties:
+      account_type:
+        type: integer
+      email:
+        type: string
+      is_verified:
+        type: boolean
+      name:
+        type: string
+      uuid:
+        type: string
+    type: object
+  httpresp.StandardDataResponse:
+    properties:
+      code:
+        type: integer
+      data: {}
+      message:
+        type: string
+    type: object
+  httpresp.StandardResponse:
+    properties:
+      code:
+        type: integer
+      message:
+        type: string
+    type: object
+  session.UserLoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  session.UserLoginResponse:
+    properties:
+      expiry:
+        type: integer
+      uuid:
+        type: string
+    type: object
+  user.CreateUserRequest:
+    properties:
+      email:
+        type: string
+      name:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - name
+    - password
+    type: object
+  user.CreateUserResponse:
+    properties:
+      id:
+        type: integer
+    type: object
+  user.ResendVerificationEmailRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  user.ResetPWAuthCodeExchangeRequest:
+    properties:
+      email:
+        type: string
+      token:
+        type: string
+    type: object
+  user.ResetPWAuthCodeExchangeResponse:
+    properties:
+      auth_code:
+        type: string
+    type: object
+  user.ResetPasswordRequest:
+    properties:
+      email:
+        type: string
+    type: object
+  user.SetNewPWRequest:
+    properties:
+      auth_code:
+        type: string
+      email:
+        type: string
+      new_password:
+        type: string
+    type: object
+info:
+  contact: {}
+  title: Golang base server
+  version: "1.0"
+paths:
+  /session/login:
+    post:
+      consumes:
+      - application/json
+      description: Create login session for user
+      parameters:
+      - description: Email and password for authentication
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/session.UserLoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpresp.StandardDataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/session.UserLoginResponse'
+              type: object
+        "401":
+          description: Authentication failed
+          schema:
+            $ref: '#/definitions/httpresp.StandardResponse'
+        "403":
+          description: User is not verified
+          schema:
+            $ref: '#/definitions/httpresp.StandardResponse'
+      summary: User login
+      tags:
+      - session
+  /user:
+    post:
+      consumes:
+      - application/json
+      description: Create new user
+      parameters:
+      - description: Create user data
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/user.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpresp.StandardDataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/user.CreateUserResponse'
+              type: object
+        "409":
+          description: User with same email already exists
+          schema:
+            $ref: '#/definitions/httpresp.StandardResponse'
+      summary: Create user
+      tags:
+      - user
+  /user/{uuid}:
+    get:
+      description: Get basic user information (protected endpoint)
+      parameters:
+      - description: UUID
+        in: query
+        name: uuid
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpresp.StandardDataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/handler_user.User'
+              type: object
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/httpresp.StandardResponse'
+      summary: Get basic user information
+      tags:
+      - user
+      - authRequired
+  /user/reset_password:
+    post:
+      consumes:
+      - application/json
+      description: Starts reset password process by generating and sending 6-digit
+        token to provided email if account exists
+      parameters:
+      - description: Specify email of account to reset
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/user.ResetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpresp.StandardResponse'
+      summary: Reset password
+      tags:
+      - user
+  /user/reset_password/set_password:
+    post:
+      consumes:
+      - application/json
+      description: Final API call for reset password process. Set new password, authenticating
+        using auth code.
+      parameters:
+      - description: Specify new password for account
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/user.SetNewPWRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpresp.StandardResponse'
+        "401":
+          description: Auth code rejected
+          schema:
+            $ref: '#/definitions/httpresp.StandardResponse'
+      summary: Set new password
+      tags:
+      - user
+  /user/reset_password/token_exchange:
+    post:
+      consumes:
+      - application/json
+      description: Verify 6-digit token and exchange token with auth code to set new
+        password
+      parameters:
+      - description: Specify both email and token
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/user.ResetPWAuthCodeExchangeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpresp.StandardDataResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/user.ResetPWAuthCodeExchangeResponse'
+              type: object
+        "401":
+          description: Token rejected
+          schema:
+            $ref: '#/definitions/httpresp.StandardResponse'
+      summary: Reset password auth code exchange
+      tags:
+      - user
+  /user/verify/{userUuid}/{token}:
+    get:
+      description: Handles verification link for email
+      parameters:
+      - description: User ID
+        in: query
+        name: userUuid
+        required: true
+        type: integer
+      - description: Verification token
+        in: query
+        name: token
+        required: true
+        type: string
+      responses: {}
+      summary: Verify email
+      tags:
+      - user
+  /user/verify/resend_email:
+    post:
+      consumes:
+      - application/json
+      description: Resends verification email while invalidating previous verification
+        link
+      parameters:
+      - description: Email and password must be provided to authenticate before sending
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/user.ResendVerificationEmailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpresp.StandardResponse'
+        "405":
+          description: User already verified
+          schema:
+            $ref: '#/definitions/httpresp.StandardResponse'
+        "429":
+          description: Too many requests made in a short period of time (2 mins)
+          schema:
+            $ref: '#/definitions/httpresp.StandardResponse'
+      summary: Resned verification email
+      tags:
+      - user
+swagger: "2.0"
